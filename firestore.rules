@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Resource data is public. All writes go through trusted Cloud Functions.
+    match /organizations/{organizationId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /users/{uid}/saved/{resourceId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Feedback is private operational data, never public resource data.
+    match /organizations/{organizationId}/feedback/{feedbackId} {
+      allow create: if request.auth != null
+        && request.resource.data.reporterUserId == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
+    // Keep future moderation/audit collections server-managed too.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
