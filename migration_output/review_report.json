@@ -1,0 +1,28 @@
+{
+  "input": "migration_output/organizations.jsonl",
+  "records": 1538,
+  "clean": 529,
+  "needsReview": 1009,
+  "cleanPercent": 34.4,
+  "needsReviewPercent": 65.6,
+  "possibleDuplicateRows": 81,
+  "reviewReasons": {
+    "missing_services_description": 286,
+    "unmapped_services_description": 63,
+    "website_missing_http_scheme_or_placeholder": 79,
+    "missing_address": 24,
+    "missing_resource_type": 231,
+    "missing_city": 381,
+    "possible_duplicate": 81,
+    "multi_category_resource_type": 157,
+    "primary_contact_needs_review": 34,
+    "alternate_contact_needs_review": 34,
+    "maps_link_missing_http_scheme_or_placeholder": 35,
+    "email_contains_unparsed_values": 4,
+    "invalid_pin_format": 8
+  },
+  "mechanicalFixes": {
+    "websiteUrlsNormalized": 147,
+    "cityCandidatesProposed": 68
+  }
+}

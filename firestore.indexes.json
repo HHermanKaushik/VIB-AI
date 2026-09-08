@@ -1,0 +1,37 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "organizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "review.status", "order": "ASCENDING" },
+        { "fieldPath": "location.state", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "organizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "review.status", "order": "ASCENDING" },
+        { "fieldPath": "location.city", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "organizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "review.status", "order": "ASCENDING" },
+        { "fieldPath": "services.codes", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "organizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "review.status", "order": "ASCENDING" },
+        { "fieldPath": "organization.types", "arrayConfig": "CONTAINS" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -1,0 +1,9 @@
+name = "drishtibution-geo"
+main = "src/index.js"
+compatibility_date = "2026-09-08"
+
+[vars]
+FIREBASE_PROJECT_ID = "haathloom"
+
+[observability]
+enabled = true
