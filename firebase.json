@@ -1,9 +1,1 @@
-{
-  "firestore": [
-    {
-      "database": "(default)",
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
-    }
-  ]
-}
+{"firestore":[{"database":"(default)","rules":"firestore.rules","indexes":"firestore.indexes.json"}],"flutter":{"platforms":{"android":{"default":{"projectId":"haathloom","appId":"1:612792255819:android:4df4d7046ca0fe3d7114ce","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"haathloom","configurations":{"android":"1:612792255819:android:4df4d7046ca0fe3d7114ce"}}}}}}

@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "languages": {
+    "en-IN": {
+      "displayNameNative": "English",
+      "review_status": "reviewed",
+      "intents": {
+        "next": {
+          "phrases": [
+            "next",
+            "what comes next",
+            "go on",
+            "continue",
+            "show the next thing"
+          ],
+          "review_status": "reviewed"
+        },
+        "repeat": {
+          "phrases": [
+            "repeat that",
+            "say that again",
+            "say it again",
+            "repeat",
+            "read that once more"
+          ],
+          "review_status": "reviewed"
+        },
+        "more_detail": {
+          "phrases": [
+            "tell me more",
+            "give more detail",
+            "more details",
+            "explain more",
+            "expand on that"
+          ],
+          "review_status": "reviewed"
+        },
+        "stop": {
+          "phrases": [
+            "stop",
+            "stop now",
+            "pause",
+            "hold on",
+            "enough"
+          ],
+          "review_status": "reviewed"
+        },
+        "yes": {
+          "phrases": [
+            "yes",
+            "yeah",
+            "sure",
+            "correct",
+            "that is right"
+          ],
+          "review_status": "reviewed"
+        },
+        "no": {
+          "phrases": [
+            "no",
+            "nope",
+            "not that",
+            "not right",
+            "wrong"
+          ],
+          "review_status": "reviewed"
+        },
+        "call": {
+          "phrases": [
+            "call",
+            "call them",
+            "make a call",
+            "phone them",
+            "dial the number"
+          ],
+          "review_status": "reviewed"
+        },
+        "save": {
+          "phrases": [
+            "save",
+            "save this",
+            "remember this",
+            "bookmark this",
+            "keep this"
+          ],
+          "review_status": "reviewed"
+        },
+        "share": {
+          "phrases": [
+            "share",
+            "share this",
+            "send this",
+            "send it to someone",
+            "forward this"
+          ],
+          "review_status": "reviewed"
+        },
+        "directions": {
+          "phrases": [
+            "directions",
+            "show directions",
+            "how do I get there",
+            "route to it",
+            "get me there"
+          ],
+          "review_status": "reviewed"
+        },
+        "change_language": {
+          "phrases": [
+            "change language",
+            "switch language",
+            "change to Hindi",
+            "use another language",
+            "change the language"
+          ],
+          "review_status": "reviewed"
+        },
+        "help": {
+          "phrases": [
+            "help",
+            "help me",
+            "what can you do",
+            "show help",
+            "assist me"
+          ],
+          "review_status": "reviewed"
+        }
+      }
+    },
+    "hi-IN": {
+      "displayNameNative": "हिन्दी",
+      "review_status": "reviewed",
+      "intents": {
+        "next": {
+          "phrases": [
+            "अगला",
+            "अगला क्या है",
+            "आगे बढ़ो",
+            "कहा पर हैं",
+            "और दिखाओ"
+          ],
+          "review_status": "reviewed"
+        },
+        "repeat": {
+          "phrases": [
+            "फिर से कहो",
+            "दोबारा सुनाओ",
+            "वही फिर से",
+            "कृपया दोबारा बताओ",
+            "फिर से बोलो"
+          ],
+          "review_status": "reviewed"
+        },
+        "more_detail": {
+          "phrases": [
+            "और विस्तार से बताओ",
+            "अधिक जानकारी दो",
+            "और बताओ",
+            "विस्तार से समझाओ",
+            "मुझे ज्यादा जानकारी दो"
+          ],
+          "review_status": "reviewed"
+        },
+        "stop": {
+          "phrases": [
+            "रुको",
+            "बस करो",
+            "अभी बंद करो",
+            "रुक जाए",
+            "ठहर जाओ"
+          ],
+          "review_status": "reviewed"
+        },
+        "yes": {
+          "phrases": [
+            "हाँ",
+            "जी",
+            "बिल्कुल",
+            "सही है",
+            "ठीक है"
+          ],
+          "review_status": "reviewed"
+        },
+        "no": {
+          "phrases": [
+            "नहीं",
+            "नहीं ना",
+            "गलत है",
+            "यह सही नहीं",
+            "नही"
+          ],
+          "review_status": "reviewed"
+        },
+        "call": {
+          "phrases": [
+            "फोन करो",
+            "कॉल करो",
+            "उन्हें कॉल करो",
+            "फोन लगाओ",
+            "नंबर डालो"
+          ],
+          "review_status": "reviewed"
+        },
+        "save": {
+          "phrases": [
+            "सेव करो",
+            "इसे सेव करो",
+            "याद रखो",
+            "बुकमार्क करो",
+            "यह रखो"
+          ],
+          "review_status": "reviewed"
+        },
+        "share": {
+          "phrases": [
+            "शेयर करो",
+            "इसे शेयर करो",
+            "भेजो",
+            "किसी को भेजो",
+            "फॉरवर्ड करो"
+          ],
+          "review_status": "reviewed"
+        },
+        "directions": {
+          "phrases": [
+            "रास्ता दिखाओ",
+            "directions दिखाओ",
+            "वहाँ कैसे पहुँचें",
+            "रूट दिखाओ",
+            "मुझे वहाँ ले चलो"
+          ],
+          "review_status": "reviewed"
+        },
+        "change_language": {
+          "phrases": [
+            "भाषा बदलो",
+            "भाषा बदलें",
+            "अंग्रेजी में करो",
+            "दूसरी भाषा चुनो",
+            "भाषा बदलें"
+          ],
+          "review_status": "reviewed"
+        },
+        "help": {
+          "phrases": [
+            "मदद करो",
+            "मुझे मदद दो",
+            "आप क्या कर सकते हो",
+            "हेल्प दिखाओ",
+            "सहायता करो"
+          ],
+          "review_status": "reviewed"
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
@@ -10,8 +11,16 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'barge_in_playback_controller.dart';
+import 'command_lexicon_service.dart';
+import 'firebase_options.dart';
+import 'geo_search_service.dart';
 import 'sarvam_service.dart';
 import 'resource_detail_screen.dart';
+import 'language_config.dart';
+import 'language_onboarding_screen.dart';
+import 'voice_intent_extractor.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const serviceCategories = <String>[
   'eye_bank',
@@ -68,22 +77,77 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await dotenv.load(fileName: '.env', isOptional: true);
-    await Firebase.initializeApp();
-    runApp(const DrishtiButionApp());
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    final preferences = await SharedPreferences.getInstance();
+    runApp(DrishtiButionApp(
+      initialLanguage: preferences.getString('preferredLanguage'),
+    ));
   } catch (error) {
     runApp(FirebaseSetupErrorApp(error: error));
   }
 }
 
 class DrishtiButionApp extends StatelessWidget {
-  const DrishtiButionApp({super.key});
+  const DrishtiButionApp({this.initialLanguage, super.key});
+
+  final String? initialLanguage;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'DrishtiBution resources',
-      home: const ResourceSearchScreen(),
+      home: AppHome(initialLanguage: initialLanguage),
       theme: ThemeData(useMaterial3: true),
+    );
+  }
+}
+
+class AppHome extends StatefulWidget {
+  const AppHome({this.initialLanguage, super.key});
+
+  final String? initialLanguage;
+
+  @override
+  State<AppHome> createState() => _AppHomeState();
+}
+
+class _AppHomeState extends State<AppHome> {
+  String? _selectedLanguage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedLanguage = widget.initialLanguage;
+  }
+
+  void _completeOnboarding(String languageCode) {
+    setState(() => _selectedLanguage = languageCode);
+  }
+
+  Future<void> _changeLanguage() async {
+    final languageCode = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => LanguageOnboardingScreen(
+          onCompleted: (language) => Navigator.of(context).pop(language),
+        ),
+      ),
+    );
+    if (languageCode != null && mounted) {
+      _completeOnboarding(languageCode);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = _selectedLanguage;
+    if (language == null) {
+      return LanguageOnboardingScreen(onCompleted: _completeOnboarding);
+    }
+    return ResourceSearchScreen(
+      initialLanguage: language,
+      onChangeLanguage: _changeLanguage,
     );
   }
 }
@@ -218,10 +282,35 @@ class ResourceRepository {
         .where((resource) => resource.searchText.contains(normalizedSearch))
         .toList();
   }
+
+  Future<List<Resource>> savedResourcesFor(String uid) async {
+    final saved = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('saved')
+        .orderBy('savedAt', descending: true)
+        .get();
+    final resources = <Resource>[];
+    for (final savedDoc in saved.docs) {
+      final doc =
+          await _firestore.collection('organizations').doc(savedDoc.id).get();
+      final data = doc.data();
+      if (!doc.exists || data == null) continue;
+      resources.add(Resource.fromMap(<String, dynamic>{'id': doc.id, ...data}));
+    }
+    return resources;
+  }
 }
 
 class ResourceSearchScreen extends StatefulWidget {
-  const ResourceSearchScreen({super.key});
+  const ResourceSearchScreen({
+    this.initialLanguage,
+    this.onChangeLanguage,
+    super.key,
+  });
+
+  final String? initialLanguage;
+  final VoidCallback? onChangeLanguage;
 
   @override
   State<ResourceSearchScreen> createState() => _ResourceSearchScreenState();
@@ -231,13 +320,18 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
   final _searchController = TextEditingController();
   final _repository = ResourceRepository();
   final _sarvam = SarvamService();
+  final _lexicon = CommandLexiconService();
+  final _geoSearch = const GeoSearchService();
+  final _auth = FirebaseAuth.instance;
   final _recorder = FlutterSoundRecorder();
   final _player = AudioPlayer();
+  BargeInPlaybackController? _bargeIn;
   Timer? _searchDebounce;
   Future<List<Resource>>? _results;
+  Future<List<Resource>>? _savedResources;
   String? _selectedService;
   String? _selectedState;
-  String _voiceLanguage = 'en-IN';
+  String _voiceLanguage = defaultLanguage.languageCode;
   bool _isRecording = false;
   bool _isSpeaking = false;
   String? _voiceStatus;
@@ -245,7 +339,22 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
   @override
   void initState() {
     super.initState();
+    _voiceLanguage = widget.initialLanguage ?? defaultLanguage.languageCode;
     _results = _runSearch();
+    _savedResources = _loadSavedResources();
+  }
+
+  Future<List<Resource>> _loadSavedResources() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Future.value(const <Resource>[]);
+    return _repository.savedResourcesFor(uid);
+  }
+
+  Future<void> _openResource(Resource resource) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => ResourceDetailScreen(resource: resource)),
+    );
+    if (mounted) setState(() => _savedResources = _loadSavedResources());
   }
 
   @override
@@ -254,6 +363,7 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
     _recorder.closeRecorder();
     _player.dispose();
     _searchController.dispose();
+    unawaited(_bargeIn?.dispose());
     super.dispose();
   }
 
@@ -331,19 +441,104 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
         await _speakMessage('I could not understand that. Please try again.');
         return;
       }
-      _searchController.text = transcription.transcript;
-      if (mounted) {
-        setState(() {
-          _voiceStatus = 'Searching for ${transcription.transcript}.';
-          _results = _runSearch();
-        });
+      final matchedIntent =
+          await _lexicon.matchIntent(transcription.transcript, _voiceLanguage);
+      if (matchedIntent == 'change_language') {
+        widget.onChangeLanguage?.call();
+        return;
       }
-      final resources = await _results;
-      if (resources != null) await _speakResults(resources);
+      _searchController.text = transcription.transcript;
+      await _runGeoVoiceSearch(transcription.transcript);
     } catch (_) {
       if (mounted) setState(() => _isRecording = false);
       await _speakMessage('Voice search failed. Please try again.');
     }
+  }
+
+  Future<void> _runGeoVoiceSearch(String transcript) async {
+    if (mounted) setState(() => _voiceStatus = 'Finding matching resources.');
+    final intent = const VoiceIntentExtractor().extract(transcript);
+    final searchResult = await _geoSearch.search(intent);
+    if (searchResult.hasError) {
+      await _speakMessage(searchResult.error!);
+      return;
+    }
+    if (mounted) setState(() => _results = Future.value(searchResult.resources));
+    if (searchResult.resources.isEmpty) {
+      await _speakMessage(
+        "I couldn't find anything matching that — want to try a different "
+        'location or service?',
+      );
+      return;
+    }
+    await _speakResourcesWithBargeIn(searchResult.resources);
+  }
+
+  Future<void> _speakResourcesWithBargeIn(List<Resource> resources) async {
+    if (mounted) setState(() => _isSpeaking = true);
+    final bargeIn = BargeInPlaybackController(
+      sarvam: _sarvam,
+      languageCode: _voiceLanguage,
+    );
+    _bargeIn = bargeIn;
+    try {
+      await bargeIn.open();
+      var index = 0;
+      while (index < resources.length) {
+        final resource = resources[index];
+        final message = _announcement(resource, index, resources.length);
+        if (mounted) setState(() => _voiceStatus = message);
+        final result = await bargeIn.speak(message);
+        if (!result.interrupted) {
+          index += 1;
+          continue;
+        }
+        final transcript = result.transcript;
+        if (transcript == null || transcript.trim().isEmpty) {
+          index += 1;
+          continue;
+        }
+        final command = await _lexicon.matchIntent(transcript, _voiceLanguage);
+        switch (command) {
+          case 'stop':
+            return;
+          case 'repeat':
+            continue;
+          case 'more_detail':
+            await bargeIn.close();
+            await _openResource(resource);
+            if (!mounted) return;
+            await bargeIn.open();
+            continue;
+          case 'next':
+            index += 1;
+            continue;
+          default:
+            index += 1;
+            continue;
+        }
+      }
+      if (mounted) {
+        setState(() => _voiceStatus = 'That was all $index results.');
+      }
+    } finally {
+      await bargeIn.close();
+      await bargeIn.dispose();
+      if (identical(_bargeIn, bargeIn)) _bargeIn = null;
+      if (mounted) setState(() => _isSpeaking = false);
+    }
+  }
+
+  String _announcement(Resource resource, int index, int total) {
+    final summary = resource.matchExplanation.isNotEmpty
+        ? resource.matchExplanation
+        : (resource.servicesText.isEmpty
+            ? 'Services not available in the database.'
+            : resource.servicesText.split('.').first);
+    final location = resource.locationLabel.isEmpty
+        ? 'Location not available'
+        : resource.locationLabel;
+    return 'Result ${index + 1} of $total. ${resource.name}. $location. $summary.';
   }
 
   Future<void> _speakMessage(String message) async {
@@ -354,33 +549,6 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
       languageCode: _voiceLanguage,
     );
     if (audio != null) await _player.play(BytesSource(audio));
-  }
-
-  Future<void> _speakResults(List<Resource> resources) async {
-    if (resources.isEmpty) {
-      await _speakMessage('No matching resources found.');
-      return;
-    }
-    if (mounted) setState(() => _isSpeaking = true);
-    try {
-      for (final resource in resources) {
-        final summary = resource.servicesText.isEmpty
-            ? 'Services not available in the database.'
-            : resource.servicesText.split('.').first;
-        final message =
-            '${resource.name}. ${resource.locationLabel.isEmpty ? 'Location not available' : resource.locationLabel}. $summary.';
-        final audio = await _sarvam.textToSpeech(
-          text: message,
-          languageCode: _voiceLanguage,
-        );
-        if (audio == null) continue;
-        await _player.play(BytesSource(audio));
-        await _player.onPlayerComplete.first;
-        await Future<void>.delayed(const Duration(milliseconds: 500));
-      }
-    } finally {
-      if (mounted) setState(() => _isSpeaking = false);
-    }
   }
 
   @override
@@ -397,6 +565,39 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
+            FutureBuilder<List<Resource>>(
+              future: _savedResources,
+              builder: (context, snapshot) {
+                final saved = snapshot.data ?? const <Resource>[];
+                if (saved.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          'Saved resources',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 116,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: saved.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) =>
+                              _savedResourceTile(saved[index]),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             Semantics(
               textField: true,
               label: 'Search organization names and services',
@@ -420,15 +621,20 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
                   labelText: 'Voice input language',
                   border: OutlineInputBorder(),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'en-IN', child: Text('English')),
-                  DropdownMenuItem(value: 'hi-IN', child: Text('Hindi')),
-                ],
+                items: validatedLanguages
+                    .map(
+                      (language) => DropdownMenuItem(
+                        value: language.languageCode,
+                        child: Text(language.displayNameNative),
+                      ),
+                    )
+                    .toList(growable: false),
                 onChanged: _isRecording
                     ? null
                     : (value) {
-                        if (value != null)
+                        if (value != null) {
                           setState(() => _voiceLanguage = value);
+                        }
                       },
               ),
             ),
@@ -564,11 +770,7 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
       label: '${resource.name}. $location.',
       child: Card(
         child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ResourceDetailScreen(resource: resource),
-            ),
-          ),
+          onTap: () => _openResource(resource),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -604,6 +806,43 @@ class _ResourceSearchScreenState extends State<ResourceSearchScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _savedResourceTile(Resource resource) {
+    final location = resource.locationLabel.isEmpty
+        ? 'Location not available'
+        : resource.locationLabel;
+    return Semantics(
+      button: true,
+      hint: 'Double tap to open the full resource profile',
+      container: true,
+      label: 'Saved: ${resource.name}. $location.',
+      child: SizedBox(
+        width: 200,
+        child: Card(
+          child: InkWell(
+            onTap: () => _openResource(resource),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Text(
+                    resource.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(location, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
             ),
           ),
         ),

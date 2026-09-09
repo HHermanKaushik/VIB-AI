@@ -5,10 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'command_lexicon_service.dart';
 import 'main.dart' show Resource;
 import 'sarvam_service.dart';
+import 'language_config.dart';
 
 class ResourceDetailScreen extends StatefulWidget {
   const ResourceDetailScreen({required this.resource, super.key});
@@ -25,6 +28,7 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen>
   final _firestore = FirebaseFirestore.instance;
   final _player = AudioPlayer();
   final _sarvam = SarvamService();
+  final CommandLexiconService _lexicon = CommandLexiconService();
   bool _isSaved = false;
   bool _isSaving = false;
   bool _isSpeaking = false;
@@ -98,7 +102,7 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen>
     ].where((part) => part.trim().isNotEmpty).join('. ');
     final bytes = await _sarvam.textToSpeech(
       text: spoken,
-      languageCode: 'en-IN',
+      languageCode: defaultLanguage.languageCode,
     );
     if (bytes != null) {
       await _player.play(BytesSource(bytes));
@@ -109,6 +113,8 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen>
 
   Future<void> _call() async {
     if (resource.phones.isEmpty) return;
+    final confirmed = await _confirmAction('call');
+    if (confirmed != true) return;
     _pendingFeedbackAction = 'call';
     final launched = await launchUrl(
       Uri(scheme: 'tel', path: resource.phones.first),
@@ -117,6 +123,9 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen>
   }
 
   Future<void> _save() async {
+    final confirmed = await _confirmAction('save');
+    if (confirmed != true) return;
+
     var user = _auth.currentUser;
     user ??= await Navigator.of(context).push<User>(
       MaterialPageRoute(builder: (_) => const PhoneSignInScreen()),
@@ -157,6 +166,8 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen>
   }
 
   Future<void> _share() async {
+    final confirmed = await _confirmAction('share');
+    if (confirmed != true) return;
     _pendingFeedbackAction = 'share';
     await SharePlus.instance.share(
       ShareParams(text: _summary(), subject: resource.name),
@@ -174,6 +185,95 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen>
       mode: LaunchMode.externalApplication,
     );
     if (!launched) _pendingFeedbackAction = null;
+  }
+
+  Future<bool> _confirmAction(String action) async {
+    final activeLanguageCode = await _activeLanguageCode();
+    while (true) {
+      final controller = TextEditingController();
+      final transcript = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Confirm action'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_confirmationPrompt(action)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Answer yes or no',
+                ),
+                onSubmitted: (value) {
+                  if (dialogContext.mounted)
+                    Navigator.of(dialogContext).pop(value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (transcript == null || transcript.trim().isEmpty) return false;
+
+      final decision =
+          await _lexicon.resolveYesNo(transcript, activeLanguageCode);
+      if (decision == 'yes') return true;
+      if (decision == 'no') return false;
+
+      if (!mounted) return false;
+      final retry = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Please answer clearly'),
+          content: Text(
+              'I could not resolve that answer as a clear yes or no. Please answer the confirmation question again.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Ask again'),
+            ),
+          ],
+        ),
+      );
+      if (retry != true) return false;
+    }
+  }
+
+  Future<String> _activeLanguageCode() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getString('preferredLanguage') ??
+        defaultLanguage.languageCode;
+  }
+
+  String _confirmationPrompt(String action) {
+    switch (action) {
+      case 'call':
+        return 'Do you want to call ${resource.name}?';
+      case 'save':
+        return 'Do you want to save ${resource.name}?';
+      case 'share':
+        return 'Do you want to share ${resource.name}?';
+      default:
+        return 'Do you want to continue?';
+    }
   }
 
   Future<void> _offerFeedback(String action) async {

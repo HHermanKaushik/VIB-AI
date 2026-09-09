@@ -26,7 +26,13 @@ class SarvamService {
 
   final Dio _dio;
 
-  String get _apiKey => dotenv.env['SARVAM_API_KEY'] ?? '';
+  String get _apiKey {
+    try {
+      return dotenv.env['SARVAM_API_KEY'] ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
 
   Future<SarvamSttResult?> speechToText({
     required File audioFile,
@@ -53,6 +59,45 @@ class SarvamService {
       return SarvamSttResult(
         transcript: transcript,
         languageCode: response.data['language_code'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<SarvamSttResult?> speechToTextAutoDetect({
+    required File audioFile,
+    required List<String> candidateLanguageCodes,
+  }) async {
+    if (_apiKey.isEmpty || candidateLanguageCodes.isEmpty) return null;
+    try {
+      final formData = FormData.fromMap({
+        'model': 'saaras:v3',
+        'mode': 'transcribe',
+        'language_code': 'unknown',
+        'file': await MultipartFile.fromFile(
+          audioFile.path,
+          filename: 'speech.wav',
+        ),
+      });
+      final response = await _dio.post(
+        '/speech-to-text',
+        data: formData,
+        options: Options(headers: {
+          'api-subscription-key': _apiKey,
+          'x-candidate-language-codes': candidateLanguageCodes.join(','),
+        }),
+      );
+      final transcript = (response.data['transcript'] as String?)?.trim();
+      final languageCode = response.data['language_code'] as String?;
+      if (transcript == null ||
+          transcript.isEmpty ||
+          !candidateLanguageCodes.contains(languageCode)) {
+        return null;
+      }
+      return SarvamSttResult(
+        transcript: transcript,
+        languageCode: languageCode,
       );
     } catch (_) {
       return null;

@@ -80,6 +80,22 @@ NODE_PATH="$PWD/functions/node_modules" node scripts/import_firestore.js migrati
 
 The importer is idempotent for the same document IDs because it uses merge writes. It does not delete existing documents and does not geocode records. `location.geo` remains null until a trusted reviewed geocoding step supplies coordinates.
 
+### Promote reviewed records to `organizations_public`
+
+`organizations` is migration staging data — every clean-flagged record, unreviewed. `organizations_public` is the promoted, human-reviewed-aware set the app should actually query. `scripts/promote_to_public.js` builds it from two sources without touching either:
+
+- `migration_output/organizations.jsonl` where `review.status == "clean"`
+- `migration_output/organizations_reviewed.jsonl` where `review.status == "verified"` (written by `review_tool.py`)
+
+The two sets are merged by `id`. If the same `id` is ever marked `clean` in the first file and `verified` in the second, the verified record wins and the script logs a warning — this should not normally happen, since review only promotes `needs_review` records, but it is never resolved silently.
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/haathloom-firestore-importer.json"
+NODE_PATH="$PWD/functions/node_modules" node scripts/promote_to_public.js
+```
+
+Documents are written using the same `id` the migration assigned, fully overwriting any existing document with that id, so the script is safe to re-run as more records get verified — it never creates duplicates. Each run prints how many records are now in `organizations_public` and how many were added vs. updated compared to what was already there. Deploy the matching rule with `firebase deploy --only firestore:rules` after the first run.
+
 ### One-time Spark-plan seed
 
 Cloud Functions are not required for the initial seed. Create a service account in the Haathloom Google Cloud project with a Firestore write role, create a JSON key, and store it outside this repository. Then run:

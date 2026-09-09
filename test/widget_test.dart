@@ -10,9 +10,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:drishtibution/main.dart';
 
 void main() {
-  testWidgets('resource search screen renders', (WidgetTester tester) async {
+  testWidgets('first launch opens spoken language setup',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const DrishtiButionApp());
-    expect(find.text('Find support resources'), findsOneWidget);
-    expect(find.text('Speak search'), findsOneWidget);
+    expect(find.text('Language setup'), findsOneWidget);
+    expect(find.text('Speak now'), findsOneWidget);
   });
 }
